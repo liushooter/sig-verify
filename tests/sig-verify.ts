@@ -3,6 +3,7 @@ import { Program } from "@coral-xyz/anchor";
 import { SigVerify } from "../target/types/sig_verify";
 import nacl from "tweetnacl";
 import * as secp from "@noble/secp256k1";
+import { keccak_256 } from "@noble/hashes/sha3"
 
 describe("sig-verify", () => {
   // Configure the client to use the local cluster.
@@ -42,7 +43,8 @@ describe("sig-verify", () => {
     const privKey = secp.utils.randomPrivateKey();
     const pubKeyRaw = secp.getPublicKey(privKey);
     const msg = Buffer.from('hello world');
-    const msgHash = await secp.utils.sha256(msg);
+    // const msgHash = await secp.utils.sha256(msg);
+    const msgHash = keccak_256(msg);
     const signatureSecp = await secp.sign(msgHash, privKey, { recovered: true });
     const isValid = secp.verify(signatureSecp[0], msgHash, pubKeyRaw);
     const pubKey = pubKeyRaw.slice(1);
@@ -51,7 +53,7 @@ describe("sig-verify", () => {
 
     // const ethAddress = anchor.web3.Secp256k1Program.publicKeyToEthAddress(pubKey);
     const ins = await program.methods
-      .secp256K1RecoverInstruction({
+      .secp256k1RecoverInstruction({
         publicKey: Array.from(pubKey),
         message: Buffer.from(msg),
         signature: Array.from(signatureSecp[0]),
