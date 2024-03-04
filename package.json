@@ -5,6 +5,7 @@
     },
     "dependencies": {
         "@coral-xyz/anchor": "^0.29.0",
+        "@noble/secp256k1": "^1.7.1",
         "tweetnacl": "^1.0.3"
     },
     "devDependencies": {

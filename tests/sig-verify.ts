@@ -2,6 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { SigVerify } from "../target/types/sig_verify";
 import nacl from "tweetnacl";
+import * as secp from "@noble/secp256k1";
 
 describe("sig-verify", () => {
   // Configure the client to use the local cluster.
@@ -37,25 +38,47 @@ describe("sig-verify", () => {
   })
 
   it("Signature verify", async () => {
+    // secp256k1
+    const privKey = secp.utils.randomPrivateKey();
+    const pubKeyRaw = secp.getPublicKey(privKey);
+    const msg = Buffer.from('hello world');
+    const msgHash = await secp.utils.sha256(msg);
+    const signatureSecp = await secp.sign(msgHash, privKey, { recovered: true });
+    const isValid = secp.verify(signatureSecp[0], msgHash, pubKeyRaw);
+    const pubKey = pubKeyRaw.slice(1);
+    console.log("isValid: ", isValid)
+    console.log("length: ", pubKey.length);
 
-    interface SignatureVerifyArgs {
-      pubkey: Uint8Array,
-      signature: Uint8Array,
-      msg: String,
-    }
+    // const ethAddress = anchor.web3.Secp256k1Program.publicKeyToEthAddress(pubKey);
+    const ins = await program.methods
+      .secp256k1RecoverInstruction({
+        publicKey: Array.from(pubKey),
+        message: Buffer.from(msg),
+        signature: Array.from(signatureSecp[0]),
+        recoveryId: signatureSecp[1],
+      })
+      .instruction()
 
-    const tx = await program.methods
-      .signatureVerify({
-        pubkey: person.publicKey,
-        signature: Array.from(signature),
-        msg: MSG.toString(),
-      })
-      .accounts({
-        payer: person.publicKey,
-        ed25519Program: anchor.web3.Ed25519Program.programId,
-      })
-      .signers([person])
-      .rpc();
+    let tx = new anchor.web3.Transaction();
+    tx.add(ins);
+    const txsig = await anchor.web3.sendAndConfirmTransaction(
+      provider.connection,
+      tx,
+      [person]
+    )
+
+    // const tx = await program.methods
+    //   .signatureVerify({
+    //     pubkey: person.publicKey,
+    //     signature: Array.from(signature),
+    //     msg: MSG.toString(),
+    //   })
+    //   .accounts({
+    //     payer: person.publicKey,
+    //     ed25519Program: anchor.web3.Ed25519Program.programId,
+    //   })
+    //   .signers([person])
+    //   .rpc();
 
     // let tx = new anchor.web3.Transaction();
     // tx.add(
@@ -74,7 +97,13 @@ describe("sig-verify", () => {
     //   [person],
     // )
 
-    console.log("Transaction signature is :", tx);
+    // const tx = await program.methods
+    //   .secp256k1RecoverInstruction({
+    //     message: Array.from(MSG),
+
+    //   })
+
+    console.log("Transaction signature is :", txsig);
   });
 });
 
