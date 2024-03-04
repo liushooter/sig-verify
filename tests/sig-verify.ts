@@ -1,9 +1,9 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { SigVerify } from "../target/types/sig_verify";
+import { keccak256 } from "ethereum-cryptography/keccak.js"
+import * as ethUtil from "@ethereumjs/util";
 import nacl from "tweetnacl";
-import * as secp from "@noble/secp256k1";
-import { keccak_256 } from "@noble/hashes/sha3"
 
 describe("sig-verify", () => {
   // Configure the client to use the local cluster.
@@ -12,13 +12,12 @@ describe("sig-verify", () => {
 
   const program = anchor.workspace.SigVerify as Program<SigVerify>;
 
-  const MSG = Uint8Array.from(Buffer.from('this is such a good message to sign'));
+  const msg = Uint8Array.from(Buffer.from('this is such a good message to sign'));
 
   const person = anchor.web3.Keypair.generate();
   const fakePerson = anchor.web3.Keypair.generate();
 
   let signature: Uint8Array;
-
 
   before(async () => {
 
@@ -35,78 +34,28 @@ describe("sig-verify", () => {
       lastValidBlockHeight: blockhash.lastValidBlockHeight
     });
 
-    signature = nacl.sign.detached(MSG, person.secretKey);
+    signature = nacl.sign.detached(msg, person.secretKey);
   })
 
-  it("Signature verify", async () => {
-    // secp256k1
-    const privKey = secp.utils.randomPrivateKey();
-    const pubKeyRaw = secp.getPublicKey(privKey);
-    const msg = Buffer.from('hello world');
-    // const msgHash = await secp.utils.sha256(msg);
-    const msgHash = keccak_256(msg);
-    const signatureSecp = await secp.sign(msgHash, privKey, { recovered: true });
-    const isValid = secp.verify(signatureSecp[0], msgHash, pubKeyRaw);
-    const pubKey = pubKeyRaw.slice(1);
-    console.log("isValid: ", isValid)
-    console.log("length: ", pubKey.length);
+  it("Ethereum recovery", async () => {
+    const privateKey = ethUtil.hexToBytes("0x1111111111111111111111111111111111111111111111111111111111111111")
+    const publicKey = ethUtil.privateToPublic(privateKey)
+
+    const messageForActivation = new TextEncoder().encode("DePIN") // activation msg
+    const hashedMessageForActivation = keccak256(messageForActivation)
+
+    const { r, s, v} = ethUtil.ecsign(hashedMessageForActivation, privateKey)
+    const signature = Uint8Array.from([...r, ...s])
+    const recoveryId = Number(ethUtil.calculateSigRecovery(v))
 
     // const ethAddress = anchor.web3.Secp256k1Program.publicKeyToEthAddress(pubKey);
-    const ins = await program.methods
-      .secp256k1RecoverInstruction({
-        publicKey: Array.from(pubKey),
-        message: Buffer.from(msg),
-        signature: Array.from(signatureSecp[0]),
-        recoveryId: signatureSecp[1],
+    const tx = await program.methods
+      .secp256K1RecoverInstruction({
+        publicKey: publicKey,
+        message: Buffer.from(messageForActivation),
+        signature: signature,
+        recoveryId: recoveryId,
       })
-      .instruction()
-
-    let tx = new anchor.web3.Transaction();
-    tx.add(ins);
-    const txsig = await anchor.web3.sendAndConfirmTransaction(
-      provider.connection,
-      tx,
-      [person]
-    )
-
-    // const tx = await program.methods
-    //   .signatureVerify({
-    //     pubkey: person.publicKey,
-    //     signature: Array.from(signature),
-    //     msg: MSG.toString(),
-    //   })
-    //   .accounts({
-    //     payer: person.publicKey,
-    //     ed25519Program: anchor.web3.Ed25519Program.programId,
-    //   })
-    //   .signers([person])
-    //   .rpc();
-
-    // let tx = new anchor.web3.Transaction();
-    // tx.add(
-    //   // Ed25519 instruction
-    //   anchor.web3.Ed25519Program.createInstructionWithPublicKey({
-    //     publicKey: person.publicKey.toBytes(),
-    //     // publicKey: fakePerson.publicKey.toBytes(),
-    //     message: MSG,
-    //     signature: signature,
-    //   })
-    // )
-
-    // const txsig = await anchor.web3.sendAndConfirmTransaction(
-    //   provider.connection,
-    //   tx,
-    //   [person],
-    // )
-
-    // const tx = await program.methods
-    //   .secp256k1RecoverInstruction({
-    //     message: Array.from(MSG),
-
-    //   })
-
-    console.log("Transaction signature is :", txsig);
+      .rpc()
   });
 });
-
-
