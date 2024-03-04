@@ -72,6 +72,8 @@ pub enum SigVeriryError {
 
 #[derive(Accounts)]
 pub struct Secp256k1RecoverInstruction<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 

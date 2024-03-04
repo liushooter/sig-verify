@@ -51,7 +51,7 @@ describe("sig-verify", () => {
 
     // const ethAddress = anchor.web3.Secp256k1Program.publicKeyToEthAddress(pubKey);
     const ins = await program.methods
-      .secp256k1RecoverInstruction({
+      .secp256K1RecoverInstruction({
         publicKey: Array.from(pubKey),
         message: Buffer.from(msg),
         signature: Array.from(signatureSecp[0]),
